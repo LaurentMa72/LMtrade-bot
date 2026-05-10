@@ -1,0 +1,43 @@
+git config --global user.email "lm.patrimoine72@gmail.com"
+git config --global user.name "LaurentMa72"
+
+
+export TOKEN="8642872800:AAE4VeTrxAJ2m_i6IPtAzf-oJ7aY0l3Xnok"
+export CHAT_ID="5866688042"
+python bot.py
+
+
+
+
+AV_KEY = "TGJC1EJRRVM5RHVDE"
+
+WATCHLIST = {
+    "KALRAY":  "ALKAL.PA",
+    "2CRSI":   "AL2SI.PA",
+    "SOITEC":  "SOI.PA",
+    "RIBER":   "ALRIB.PA",
+    "SEMCO":   "ALSEM.PA",
+    "NEXANS":  "NEX.PA",
+    "VUSION":  "VU.PA",
+    "STM":     "STM.PA",
+}
+
+import requests as req
+
+async def cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = "📊 *Cours en temps réel*\n\n"
+    for nom, ticker in WATCHLIST.items():
+        try:
+            url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={AV_KEY}"
+            r = req.get(url, timeout=10).json()
+            price = float(r["Global Quote"]["05. price"])
+            msg += f"• {nom}: *{price:.2f} €*\n"
+        except:
+            msg += f"• {nom}: indisponible\n"
+    await update.message.reply_markdown(msg)
+
+
+export TOKEN="8642872800:AAE4VeTrxAJ2m_i6IPtAzf-oJ7aY0l3Xnok"
+export CHAT_ID="5866688042"
+export AV_KEY="TGJC1EJRRVM5RHVDE"
+python bot.py
