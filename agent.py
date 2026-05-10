@@ -1,48 +1,60 @@
-import time, json
-import yfinance as yf
+import time, json, os
 import requests
 from datetime import datetime
 
-#TOKEN = "8642872800:AAE4VeTrxAJ2m_i6IPtAzf-oJ7aY0l3Xnok"
-#CHAT_ID = "5866688042"
-#ANTHROPIC_KEY = "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"
-
-import os
 TOKEN = os.environ.get("TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY")
+TWELVE_KEY = os.environ.get("TWELVE_KEY")
 
 WATCHLIST = {
-    "KALRAY": "ALKAL.PA",
-    "2CRSI":  "AL2SI.PA",
-    "SOITEC": "SOI.PA",
-    "RIBER":  "ALRIB.PA",
-    "SEMCO":  "ALSEM.PA",
-    "NEXANS": "NEX.PA",
-    "VUSION": "VU.PA",
-    "STM":    "STMPA.PA",
+    "KALRAY": "ALKAL",
+    "2CRSI":  "AL2SI",
+    "SOITEC": "SOI",
+    "RIBER":  "ALRIB",
+    "SEMCO":  "ALSEM",
+    "NEXANS": "NEX",
+    "VUSION": "VU",
+    "STM":    "STMPA",
 }
 
+EXCHANGE = "XPAR"
 BUDGET_PAR_LIGNE = 100
 
-def get_indicateurs(ticker):
+def get_indicateurs(symbol):
     try:
-        t = yf.Ticker(ticker)
-        hist = t.history(period="3mo", interval="1d")
-        if hist.empty or len(hist) < 21:
+        # Données historiques pour RSI et MM
+        url = f"https://api.twelvedata.com/time_series?symbol={symbol}&exchange={EXCHANGE}&interval=1day&outputsize=60&apikey={TWELVE_KEY}"
+        r = requests.get(url, timeout=15).json()
+        if r.get("status") == "error":
+            print(f"     Erreur Twelve Data: {r.get('message')}")
             return None
-        close = hist["Close"]
-        volume = hist["Volume"]
-        mm20 = close.rolling(20).mean().iloc[-1]
-        mm50 = close.rolling(50).mean().iloc[-1] if len(close) >= 50 else None
-        prix = close.iloc[-1]
-        delta = close.diff()
-        gain = delta.clip(lower=0).rolling(14).mean()
-        loss = (-delta.clip(upper=0)).rolling(14).mean()
-        rs = gain.iloc[-1] / loss.iloc[-1] if loss.iloc[-1] != 0 else 100
+
+        valeurs = r["values"]
+        closes = [float(v["close"]) for v in reversed(valeurs)]
+        volumes = [float(v["volume"]) for v in reversed(valeurs)]
+
+        if len(closes) < 21:
+            return None
+
+        prix = closes[-1]
+        mm20 = sum(closes[-20:]) / 20
+        mm50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else None
+
+        # RSI 14
+        gains, losses = [], []
+        for i in range(-14, 0):
+            diff = closes[i] - closes[i-1]
+            gains.append(max(diff, 0))
+            losses.append(max(-diff, 0))
+        avg_gain = sum(gains) / 14
+        avg_loss = sum(losses) / 14
+        rs = avg_gain / avg_loss if avg_loss != 0 else 100
         rsi = round(100 - (100 / (1 + rs)), 1)
-        vol_actuel = int(volume.iloc[-1])
-        vol_moyen = int(volume.rolling(20).mean().iloc[-1])
+
+        vol_actuel = int(volumes[-1])
+        vol_moyen = int(sum(volumes[-20:]) / 20)
+
         return {
             "prix": round(prix, 2),
             "mm20": round(mm20, 2),
@@ -53,70 +65,54 @@ def get_indicateurs(ticker):
             "croisement_haussier": bool(mm20 > mm50) if mm50 else None
         }
     except Exception as e:
-        print(f"     Erreur indicateurs {ticker}: {e}")
+        print(f"     Erreur indicateurs {symbol}: {e}")
         return None
 
-def get_carnet_ordres(ticker):
+def get_carnet_ordres(symbol):
     try:
-        t = yf.Ticker(ticker)
-        info = t.fast_info
-        bid = round(info.get("bid", 0), 2)
-        ask = round(info.get("ask", 0), 2)
-        bid_size = info.get("bidSize", 0)
-        ask_size = info.get("askSize", 0)
+        url = f"https://api.twelvedata.com/quote?symbol={symbol}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
+        r = requests.get(url, timeout=15).json()
+        if r.get("status") == "error":
+            return None
 
-        if not bid or not ask:
-            # Fallback : estimer depuis le prix
-            prix = info.get("last_price", 0)
-            bid = round(prix * 0.998, 2)
-            ask = round(prix * 1.002, 2)
-            bid_size = 0
-            ask_size = 0
+        bid = float(r.get("fifty_two_week", {}).get("low", 0) or 0)
+        ask = float(r.get("fifty_two_week", {}).get("high", 0) or 0)
+        prix = float(r.get("close", 0) or 0)
 
+        # Estimation bid/ask depuis le prix
+        bid = round(prix * 0.998, 2)
+        ask = round(prix * 1.002, 2)
         spread = round(ask - bid, 3)
         spread_pct = round((spread / bid) * 100, 2) if bid else 0
-
-        total = (bid_size or 0) + (ask_size or 0)
-        pression_acheteurs = round((bid_size / total) * 100) if total > 0 else 50
-
-        # Prix limite optimal : entre bid et ask, côté acheteur
         prix_limite_achat = round(bid + spread * 0.3, 2)
         prix_limite_vente = round(ask - spread * 0.3, 2)
 
         return {
             "bid": bid,
             "ask": ask,
-            "bid_size": bid_size,
-            "ask_size": ask_size,
             "spread": spread,
             "spread_pct": spread_pct,
-            "pression_acheteurs": pression_acheteurs,
+            "pression_acheteurs": 50,
             "prix_limite_achat": prix_limite_achat,
             "prix_limite_vente": prix_limite_vente,
         }
     except Exception as e:
-        print(f"     Erreur carnet {ticker}: {e}")
+        print(f"     Erreur carnet {symbol}: {e}")
         return None
 
 def analyser_avec_claude(nom, indicateurs, carnet):
     carnet_txt = ""
     if carnet:
-        pression_label = "🟢 Acheteurs dominants" if carnet["pression_acheteurs"] > 55 else \
-                         "🔴 Vendeurs dominants" if carnet["pression_acheteurs"] < 45 else \
-                         "⚖️ Équilibré"
         carnet_txt = f"""
 Carnet d'ordres :
-- Bid : {carnet['bid']}€ ({carnet['bid_size']} titres)
-- Ask : {carnet['ask']}€ ({carnet['ask_size']} titres)
-- Spread : {carnet['spread']}€ ({carnet['spread_pct']}%)
-- Pression : {pression_label} ({carnet['pression_acheteurs']}% acheteurs)
+- Bid estimé : {carnet['bid']}€ / Ask estimé : {carnet['ask']}€
+- Spread : {carnet['spread_pct']}%
 - Prix limite achat optimal : {carnet['prix_limite_achat']}€
 - Prix limite vente optimal : {carnet['prix_limite_vente']}€"""
 
     prompt = f"""Tu es un assistant de trading spéculatif pour un portefeuille PEA français.
 
 Valeur : {nom}
-Indicateurs techniques :
 - Prix actuel : {indicateurs['prix']}€
 - RSI (14) : {indicateurs['rsi']}
 - MM20 : {indicateurs['mm20']}€ / MM50 : {indicateurs['mm50']}€
@@ -133,9 +129,7 @@ Règles strictes :
 - VENDRE uniquement si RSI > 70 strictement
 - ATTENDRE dans tous les autres cas
 - Si spread > 1% : toujours ordre LIMITE
-- Si spread < 0.5% : ordre MARCHE possible
-- Prix entrée achat = prix_limite_achat du carnet si disponible, sinon cours actuel
-- Prix entrée vente = prix_limite_vente du carnet si disponible, sinon cours actuel
+- Prix entrée achat = prix_limite_achat / vente = prix_limite_vente
 - Quantité = floor(budget / prix_entree), minimum 1
 - Stop = prix_entree * 0.75 / Objectif = prix_entree * 1.50"""
 
@@ -167,25 +161,25 @@ def envoyer_telegram(message):
 def run_agent():
     maintenant = datetime.now()
     heure = maintenant.hour
-   # if maintenant.weekday() >= 5:
-    #    print("Week-end, agent en pause.")
-     #   return
+    if maintenant.weekday() >= 5:
+        print("Week-end, agent en pause.")
+        return
     if not (9 <= heure < 18):
         print(f"Hors séance ({heure}h), agent en pause.")
         return
 
     print(f"\n🤖 Analyse lancée à {maintenant.strftime('%H:%M')}")
 
-    for nom, ticker in WATCHLIST.items():
+    for nom, symbol in WATCHLIST.items():
         print(f"  → Analyse {nom}...")
-        indicateurs = get_indicateurs(ticker)
+        indicateurs = get_indicateurs(symbol)
         if not indicateurs:
             print(f"     Données indisponibles pour {nom}")
             continue
 
-        carnet = get_carnet_ordres(ticker)
+        carnet = get_carnet_ordres(symbol)
         if carnet:
-            print(f"     Carnet : Bid {carnet['bid']}€ / Ask {carnet['ask']}€ / Spread {carnet['spread_pct']}%")
+            print(f"     Prix : {indicateurs['prix']}€ | Bid {carnet['bid']}€ / Ask {carnet['ask']}€ | Spread {carnet['spread_pct']}%")
 
         try:
             signal = analyser_avec_claude(nom, indicateurs, carnet)
@@ -199,16 +193,9 @@ def run_agent():
         if action in ["ACHETER", "VENDRE"]:
             emoji = "📈" if action == "ACHETER" else "📉"
             type_ordre = signal.get("type_ordre", "LIMITE")
-
-            # Infos carnet dans le message
             carnet_msg = ""
             if carnet:
-                pression = "🟢 Acheteurs" if carnet["pression_acheteurs"] > 55 else \
-                           "🔴 Vendeurs" if carnet["pression_acheteurs"] < 45 else "⚖️ Équilibré"
-                carnet_msg = f"""
-📋 *Carnet d'ordres*
-Bid : {carnet['bid']}€ | Ask : {carnet['ask']}€
-Spread : {carnet['spread_pct']}% | {pression}"""
+                carnet_msg = f"\n📋 Bid {carnet['bid']}€ | Ask {carnet['ask']}€ | Spread {carnet['spread_pct']}%"
 
             msg = f"""🤖 *SIGNAL {nom}*
 
@@ -218,16 +205,15 @@ Spread : {carnet['spread_pct']}% | {pression}"""
 📦 Quantité : {signal.get('quantite', '—')} titres
 🛑 Stop-loss : {signal.get('stop_loss', '—')}€
 🎯 Objectif : {signal.get('objectif', '—')}€
-📊 RSI : {indicateurs['rsi']}
-{carnet_msg}
+📊 RSI : {indicateurs['rsi']}{carnet_msg}
 💡 _{signal.get('raison', '')}_"""
 
             envoyer_telegram(msg)
             print(f"     ✅ Signal {action} envoyé sur Telegram")
 
 if __name__ == "__main__":
-    print("🚀 Agent de trading démarré")
-    envoyer_telegram("🚀 *Agent LMTrade v2 démarré*\nCarnet d'ordres activé. Analyse toutes les heures en séance.")
+    print("🚀 Agent de trading LMTrade v3 démarré — Twelve Data activé")
+    envoyer_telegram("🚀 *Agent LMTrade v3 démarré*\nTwelve Data activé. Analyse toutes les heures en séance.")
     while True:
         run_agent()
         print("⏰ Prochaine analyse dans 60 min...")
