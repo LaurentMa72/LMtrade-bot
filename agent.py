@@ -8,16 +8,22 @@ ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY")
 TWELVE_KEY = os.environ.get("TWELVE_KEY")
 
 WATCHLIST = {
-    "KALRAY": "ALKAL",
-    "2CRSI":  "AL2SI",
-    "SOITEC": "SOI",
-    "RIBER":  "ALRIB",
-    "SEMCO":  "ALSEM",
-    "NEXANS": "NEX",
-    "VUSION": "VU",
-    "STM":    "STMPA",
+    # IA / Semi
+    "KALRAY":  "ALKAL",
+    "2CRSI":   "AL2SI",
+    "SOITEC":  "SOI",
+    "RIBER":   "ALRIB",
+    "SEMCO":   "ALSEM",
+    "NEXANS":  "NEX",
+    "VUSION":  "VU",
+    "STM":     "STMPA",
+    # Biotech spéculatif
+    "NANOBIOTIX": "NANO",
+    "DBV":        "DBV",
+    "GENFIT":     "GNFT",
+    "VALLOUREC":  "VK",
+    "MAUREL":     "MAU",
 }
-
 EXCHANGE = "XPAR"
 BUDGET_PAR_LIGNE = 100
 
