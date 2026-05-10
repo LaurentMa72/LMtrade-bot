@@ -224,8 +224,7 @@ from scanner import scanner_marche, UNIVERS_SCAN
 if __name__ == "__main__":
     print("🚀 Agent de trading LMTrade v3 démarré — Twelve Data activé")
     envoyer_telegram("🚀 *Agent LMTrade v3 démarré*\nTwelve Data activé. Analyse toutes les heures en séance.")
-   while True:
-        scanner_marche()  # Scan à 9h30 chaque matin
-        run_agent()       # Analyse horaire en séance
+    while True:
+        run_agent()
         print("⏰ Prochaine analyse dans 60 min...")
         time.sleep(3600)
