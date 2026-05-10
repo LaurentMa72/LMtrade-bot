@@ -41,3 +41,19 @@ export TOKEN="8642872800:AAE4VeTrxAJ2m_i6IPtAzf-oJ7aY0l3Xnok"
 export CHAT_ID="5866688042"
 export AV_KEY="TGJC1EJRRVM5RHVDE"
 python bot.py
+
+----------------------------------------------------------------
+
+python -c "import requests; r = requests.post('https://api.anthropic.com/v1/messages', headers={'x-api-key': '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', 'anthropic-version': '2023-06-01', 'content-type': 'application/json'}, json={'model': 'claude-sonnet-4-20250514', 'max_tokens': 10, 'messages': [{'role': 'user', 'content': 'test'}]}); print(r.json())"
+
+-------------------------------------------------------------------------------------------------------------
+cd C:\Users\group\MonBot
+git remote add hf https://huggingface.co/spaces/LaurentMa/lmtrade-bot
+git add .
+git commit -m "deploy agent v2"
+git push hf master
+
+----------------------------------------------------------------
+#TOKEN = "8642872800:AAE4VeTrxAJ2m_i6IPtAzf-oJ7aY0l3Xnok"
+#CHAT_ID = "5866688042"
+#ANTHROPIC_KEY = "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"

@@ -3,9 +3,14 @@ import yfinance as yf
 import requests
 from datetime import datetime
 
-TOKEN = "8642872800:AAE4VeTrxAJ2m_i6IPtAzf-oJ7aY0l3Xnok"
-CHAT_ID = "5866688042"
-ANTHROPIC_KEY = "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"
+#TOKEN = "8642872800:AAE4VeTrxAJ2m_i6IPtAzf-oJ7aY0l3Xnok"
+#CHAT_ID = "5866688042"
+#ANTHROPIC_KEY = "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"
+
+import os
+TOKEN = os.environ.get("TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
+ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY")
 
 WATCHLIST = {
     "KALRAY": "ALKAL.PA",
