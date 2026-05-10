@@ -1,28 +1,87 @@
-import yfinance as yf
+import os, json
+import requests
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from threading import Thread
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-import os
 TOKEN = os.environ.get("TOKEN")
-TON_CHAT_ID = int(os.environ.get("CHAT_ID"))
+CHAT_ID = os.environ.get("CHAT_ID")
 
 WATCHLIST = {
-    "KALRAY":  "ALKAL.PA",
-    "2CRSI":   "AL2SI.PA",
-    "SOITEC":  "SOI.PA",
-    "RIBER":   "ALRIB.PA",
-    "SEMCO":   "ALSEM.PA",
-    "NEXANS":  "NEX.PA",
-    "VUSION":  "VU.PA",
-    "STM":     "STM.PA",
+    "KALRAY":     "ALKAL.PA",
+    "2CRSI":      "AL2SI.PA",
+    "SOITEC":     "SOI.PA",
+    "RIBER":      "ALRIB.PA",
+    "SEMCO":      "ALSEM.PA",
+    "NEXANS":     "NEX.PA",
+    "VUSION":     "VU.PA",
+    "STM":        "STMPA.PA",
+    "NANOBIOTIX": "NANO.PA",
+    "DBV":        "DBV.PA",
+    "GENFIT":     "GNFT.PA",
+    "VALLOUREC":  "VK.PA",
+    "MAUREL":     "MAU.PA",
 }
 
 portfolio = {}
+
+# ─── Webhook TradingView ───────────────────────────────────────────────────────
+
+class WebhookHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8")
+            data = json.loads(body)
+
+            valeur = data.get("valeur", "?")
+            action = data.get("action", "?")
+            prix = data.get("prix", "?")
+            raison = data.get("raison", "Alerte TradingView")
+
+            emoji = "📈" if action == "ACHETER" else "📉" if action == "VENDRE" else "🔔"
+            msg = f"""📡 *ALERTE TRADINGVIEW*
+
+{emoji} *{action} — {valeur}*
+💶 Prix : {prix}€
+💡 _{raison}_
+
+⚡ Signal temps réel"""
+
+            envoyer_telegram(msg)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"OK")
+        except Exception as e:
+            print(f"Webhook error: {e}")
+            self.send_response(500)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        pass  # Silence les logs HTTP
+
+def demarrer_webhook():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), WebhookHandler)
+    print(f"🌐 Webhook actif sur port {port}")
+    server.serve_forever()
+
+# ─── Commandes Telegram ────────────────────────────────────────────────────────
+
+def envoyer_telegram(message):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    requests.post(url, json={
+        "chat_id": CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }, timeout=10)
 
 async def cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = "📊 *Cours en temps réel*\n\n"
     for nom, ticker in WATCHLIST.items():
         try:
+            import yfinance as yf
             price = yf.Ticker(ticker).fast_info["last_price"]
             msg += f"• {nom}: *{price:.2f} €*\n"
         except:
@@ -37,8 +96,9 @@ async def portefeuille(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     total_pv = 0
     for nom, pos in portfolio.items():
         try:
+            import yfinance as yf
             price = yf.Ticker(WATCHLIST[nom]).fast_info["last_price"]
-            pv  = (price - pos["prix_achat"]) * pos["qty"]
+            pv = (price - pos["prix_achat"]) * pos["qty"]
             pct = (price / pos["prix_achat"] - 1) * 100
             total_pv += pv
             signe = "🟢" if pv >= 0 else "🔴"
@@ -59,37 +119,14 @@ async def achat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def vente(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
-        parts = update.message.text.split()
-        valeur = parts[1].upper()
+        valeur = update.message.text.split()[1].upper()
         if valeur in portfolio:
             pos = portfolio.pop(valeur)
-            await update.message.reply_text(f"✅ Position {valeur} clôturée (était {pos['qty']} titres @ {pos['prix_achat']:.2f}€)")
+            await update.message.reply_text(f"✅ {valeur} clôturé ({pos['qty']} titres @ {pos['prix_achat']:.2f}€)")
         else:
-            await update.message.reply_text(f"❌ {valeur} non trouvé dans le portefeuille")
+            await update.message.reply_text(f"❌ {valeur} non trouvé")
     except:
         await update.message.reply_text("Format : /vente KALRAY")
-
-async def alerte_auto(ctx: ContextTypes.DEFAULT_TYPE):
-    SEUILS = {
-        "KALRAY": {"stop": 0.75, "obj": 1.50},
-        "2CRSI":  {"stop": 0.75, "obj": 1.50},
-        "RIBER":  {"stop": 0.75, "obj": 2.00},
-        "SOITEC": {"stop": 0.75, "obj": 1.40},
-    }
-    for nom, pos in portfolio.items():
-        if nom not in SEUILS:
-            continue
-        try:
-            price = yf.Ticker(WATCHLIST[nom]).fast_info["last_price"]
-            ratio = price / pos["prix_achat"]
-            if ratio <= SEUILS[nom]["stop"]:
-                await ctx.bot.send_message(chat_id=TON_CHAT_ID,
-                    text=f"🔴 STOP {nom} : {price:.2f}€ — Stop-loss -25% déclenché !")
-            elif ratio >= SEUILS[nom]["obj"]:
-                await ctx.bot.send_message(chat_id=TON_CHAT_ID,
-                    text=f"🟢 OBJECTIF {nom} : {price:.2f}€ — Prise de profit conseillée !")
-        except:
-            pass
 
 async def aide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = """📱 *Commandes disponibles*
@@ -101,20 +138,18 @@ async def aide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 /aide — Ce message"""
     await update.message.reply_markdown(msg)
 
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(CommandHandler("cours", cours))
-app.add_handler(CommandHandler("portefeuille", portefeuille))
-app.add_handler(CommandHandler("achat", achat))
-app.add_handler(CommandHandler("vente", vente))
-app.add_handler(CommandHandler("aide", aide))
-import asyncio
+# ─── Lancement ────────────────────────────────────────────────────────────────
 
-async def main():
-    async with app:
-        await app.initialize()
-        app.job_queue.run_repeating(alerte_auto, interval=300, first=10)
-        await app.start()
-        await app.updater.start_polling()
-        await asyncio.Event().wait()
+if __name__ == "__main__":
+    # Démarre le webhook dans un thread séparé
+    t = Thread(target=demarrer_webhook, daemon=True)
+    t.start()
 
-asyncio.run(main())
+    print("🤖 Bot Telegram démarré")
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("cours", cours))
+    app.add_handler(CommandHandler("portefeuille", portefeuille))
+    app.add_handler(CommandHandler("achat", achat))
+    app.add_handler(CommandHandler("vente", vente))
+    app.add_handler(CommandHandler("aide", aide))
+    app.run_polling()
