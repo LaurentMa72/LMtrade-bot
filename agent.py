@@ -1,6 +1,8 @@
 import time, json, os, threading
 import requests
 from datetime import datetime
+import pytz
+PARIS_TZ = pytz.timezone('Europe/Paris')
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
@@ -122,7 +124,7 @@ Stop = prix*0.75. Objectif = prix*1.50. Quantite = floor(budget/prix)."""
 
 def run_agent():
     print(f"run_agent appelé à {datetime.now().strftime('%H:%M:%S')}", flush=True)
-    maintenant = datetime.now()
+    maintenant = datetime.now(PARIS_TZ)
     if maintenant.weekday() >= 5:
         print("Week-end, pause.", flush=True)
         return
