@@ -37,17 +37,32 @@ async def cmd_aide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Récupération des cours...")
+    
+    ISIN_MAP = {
+        "KALRAY":     "FR0010722819",
+        "2CRSI":      "FR0013341781",
+        "SOITEC":     "FR0013227113",
+        "RIBER":      "FR0000075954",
+        "SEMCO":      "FR0014010H01",
+        "NEXANS":     "FR0000044448",
+        "VUSION":     "FR0010282822",
+        "STM":        "NL0000226223",
+        "NANOBIOTIX": "FR0011341205",
+        "DBV":        "FR0010844001",
+        "GENFIT":     "FR0004159473",
+        "VALLOUREC":  "FR0000120354",
+        "MAUREL":     "FR0000051070",
+    }
+    
     msg = "📊 *Cours en temps réel*\n\n"
-    for nom, symbol in WATCHLIST.items():
+    for nom, isin in ISIN_MAP.items():
         try:
-            url = f"https://api.twelvedata.com/price?symbol={symbol}&apikey={TWELVE_KEY}"
-            print(f"Appel Twelve Data: {url[:60]}...", flush=True)
-            import time as _time; _time.sleep(0.5); r = requests.get(url, timeout=10).json()
-            print(f"Réponse {nom}: {r}", flush=True)
-            price = float(r["price"])
+            url = f"https://www.boursorama.com/bourse/action/graph/ws/GetTicksEOD?isin={isin}&period=1&guid="
+            headers = {"User-Agent": "Mozilla/5.0"}
+            r = requests.get(url, headers=headers, timeout=10).json()
+            price = r["d"]["qd"][-1]["c"]
             msg += f"• {nom}: *{price:.2f} €*\n"
         except Exception as e:
-            print(f"Erreur {nom}: {e}", flush=True)
             msg += f"• {nom}: indisponible\n"
     await update.message.reply_markdown(msg)
 
