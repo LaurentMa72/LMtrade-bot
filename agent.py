@@ -3,8 +3,6 @@ import requests
 from datetime import datetime
 import pytz
 PARIS_TZ = pytz.timezone('Europe/Paris')
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.environ.get("TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
@@ -158,75 +156,6 @@ def run_agent():
 📊 RSI : {indicateurs["rsi"]}{carnet_msg}
 💡 _{signal.get("raison","")}_"""
             envoyer_telegram(msg)
-
-async def cmd_aide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = """📱 *Commandes*
-
-/cours — Cours en temps réel
-/portefeuille — PV de tes positions
-/achat VALEUR QTY PRIX
-/vente VALEUR
-/signal — Analyse immédiate
-/aide — Ce message"""
-    await update.message.reply_markdown(msg)
-
-async def cmd_cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = "📊 *Cours en temps réel*\n\n"
-    for nom, symbol in WATCHLIST.items():
-        try:
-            url = f"https://api.twelvedata.com/price?symbol={symbol}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
-            r = requests.get(url, timeout=10).json()
-            price = float(r["price"])
-            msg += f"• {nom}: *{price:.2f} €*\n"
-        except:
-            msg += f"• {nom}: indisponible\n"
-    await update.message.reply_markdown(msg)
-
-async def cmd_portefeuille(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not portfolio:
-        await update.message.reply_text("Portefeuille vide.")
-        return
-    msg = "💼 *Portefeuille*\n\n"
-    total_pv = 0
-    for nom, pos in portfolio.items():
-        try:
-            url = f"https://api.twelvedata.com/price?symbol={WATCHLIST[nom]}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
-            r = requests.get(url, timeout=10).json()
-            price = float(r["price"])
-            pv = (price - pos["prix_achat"]) * pos["qty"]
-            pct = (price / pos["prix_achat"] - 1) * 100
-            total_pv += pv
-            signe = "🟢" if pv >= 0 else "🔴"
-            msg += f"{signe} {nom}: {pos['qty']} x {price:.2f}€ | PV: {pv:+.2f}€ ({pct:+.1f}%)\n"
-        except:
-            msg += f"• {nom}: erreur\n"
-    msg += f"\n*PV total : {total_pv:+.2f} €*"
-    await update.message.reply_markdown(msg)
-
-async def cmd_achat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    try:
-        parts = update.message.text.split()
-        valeur, qty, prix = parts[1].upper(), int(parts[2]), float(parts[3])
-        portfolio[valeur] = {"qty": qty, "prix_achat": prix}
-        await update.message.reply_text(f"✅ {qty} {valeur} @ {prix:.2f}€")
-    except:
-        await update.message.reply_text("Format : /achat KALRAY 10 7.50")
-
-async def cmd_vente(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    try:
-        valeur = update.message.text.split()[1].upper()
-        if valeur in portfolio:
-            pos = portfolio.pop(valeur)
-            await update.message.reply_text(f"✅ {valeur} clôturé")
-        else:
-            await update.message.reply_text(f"❌ {valeur} non trouvé")
-    except:
-        await update.message.reply_text("Format : /vente KALRAY")
-
-async def cmd_signal(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔄 Analyse en cours...")
-    run_agent()
-    await update.message.reply_text("✅ Analyse terminée.")
 
 def lancer_agent():
     print("🚀 Agent démarré", flush=True)
