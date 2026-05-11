@@ -237,13 +237,4 @@ def lancer_agent():
         time.sleep(3600)
 
 if __name__ == "__main__":
-    t = threading.Thread(target=lancer_agent, daemon=True)
-    t.start()
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("aide", cmd_aide))
-    app.add_handler(CommandHandler("cours", cmd_cours))
-    app.add_handler(CommandHandler("portefeuille", cmd_portefeuille))
-    app.add_handler(CommandHandler("achat", cmd_achat))
-    app.add_handler(CommandHandler("vente", cmd_vente))
-    app.add_handler(CommandHandler("signal", cmd_signal))
-    app.run_polling()
+    lancer_agent()
