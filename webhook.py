@@ -54,15 +54,23 @@ async def cmd_cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "MAUREL":     "FR0000051070",
     }
     
+    YAHOO_MAP = {
+        "KALRAY": "ALKAL.PA", "2CRSI": "AL2SI.PA", "SOITEC": "SOI.PA",
+        "RIBER": "ALRIB.PA", "SEMCO": "ALSEM.PA", "NEXANS": "NEX.PA",
+        "VUSION": "VU.PA", "STM": "STMPA.PA", "NANOBIOTIX": "NANO.PA",
+        "DBV": "DBV.PA", "GENFIT": "GNFT.PA", "VALLOUREC": "VK.PA",
+        "MAUREL": "MAU.PA",
+    }
     msg = "📊 *Cours en temps réel*\n\n"
-    for nom, isin in ISIN_MAP.items():
+    for nom, ticker in YAHOO_MAP.items():
         try:
-            url = f"https://www.boursorama.com/bourse/action/graph/ws/GetTicksEOD?isin={isin}&period=1&guid="
-            headers = {"User-Agent": "Mozilla/5.0"}
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
             r = requests.get(url, headers=headers, timeout=10).json()
-            price = r["d"]["qd"][-1]["c"]
+            price = r["chart"]["result"][0]["meta"]["regularMarketPrice"]
             msg += f"• {nom}: *{price:.2f} €*\n"
         except Exception as e:
+            print(f"Erreur {nom}: {e}", flush=True)
             msg += f"• {nom}: indisponible\n"
     await update.message.reply_markdown(msg)
 
