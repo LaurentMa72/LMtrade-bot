@@ -11,10 +11,11 @@ EXCHANGE = "XPAR"
 portfolio = {}
 
 WATCHLIST = {
-    "KALRAY": "ALKAL", "2CRSI": "AL2SI", "SOITEC": "SOI",
-    "RIBER": "ALRIB", "SEMCO": "ALSEM", "NEXANS": "NEX",
-    "VUSION": "VU", "STM": "STMPA", "NANOBIOTIX": "NANO",
-    "DBV": "DBV", "GENFIT": "GNFT", "VALLOUREC": "VK", "MAUREL": "MAU",
+    "KALRAY": "ALKAL:XPAR", "2CRSI": "AL2SI:XPAR", "SOITEC": "SOI:XPAR",
+    "RIBER": "ALRIB:XPAR", "SEMCO": "ALSEM:XPAR", "NEXANS": "NEX:XPAR",
+    "VUSION": "VU:XPAR", "STM": "STMPA:XPAR", "NANOBIOTIX": "NANO:XPAR",
+    "DBV": "DBV:XPAR", "GENFIT": "GNFT:XPAR", "VALLOUREC": "VK:XPAR",
+    "MAUREL": "MAU:XPAR",
 }
 
 def envoyer_telegram(message):
@@ -39,9 +40,9 @@ async def cmd_cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = "📊 *Cours en temps réel*\n\n"
     for nom, symbol in WATCHLIST.items():
         try:
-            url = f"https://api.twelvedata.com/price?symbol={symbol}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
+            url = f"https://api.twelvedata.com/price?symbol={symbol}&apikey={TWELVE_KEY}"
             print(f"Appel Twelve Data: {url[:60]}...", flush=True)
-            r = requests.get(url, timeout=10).json()
+            import time as _time; _time.sleep(0.5); r = requests.get(url, timeout=10).json()
             print(f"Réponse {nom}: {r}", flush=True)
             price = float(r["price"])
             msg += f"• {nom}: *{price:.2f} €*\n"
