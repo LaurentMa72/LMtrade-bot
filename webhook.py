@@ -35,14 +35,18 @@ async def cmd_aide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_markdown(msg)
 
 async def cmd_cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Récupération des cours...")
     msg = "📊 *Cours en temps réel*\n\n"
     for nom, symbol in WATCHLIST.items():
         try:
             url = f"https://api.twelvedata.com/price?symbol={symbol}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
+            print(f"Appel Twelve Data: {url[:60]}...", flush=True)
             r = requests.get(url, timeout=10).json()
+            print(f"Réponse {nom}: {r}", flush=True)
             price = float(r["price"])
             msg += f"• {nom}: *{price:.2f} €*\n"
-        except:
+        except Exception as e:
+            print(f"Erreur {nom}: {e}", flush=True)
             msg += f"• {nom}: indisponible\n"
     await update.message.reply_markdown(msg)
 
