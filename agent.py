@@ -7,27 +7,27 @@ PARIS_TZ = pytz.timezone('Europe/Paris')
 TOKEN = os.environ.get("TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY")
-TWELVE_KEY = os.environ.get("TWELVE_KEY")
 
-EXCHANGE = "XPAR"
 BUDGET_PAR_LIGNE = 100
 portfolio = {}
 
 WATCHLIST = {
-    "KALRAY": "ALKAL",
-    "2CRSI":  "AL2SI",
-    "SOITEC": "SOI",
-    "RIBER":  "ALRIB",
-    "SEMCO":  "ALSEM",
-    "NEXANS": "NEX",
-    "VUSION": "VU",
-    "STM":    "STMPA",
-    "NANOBIOTIX": "NANO",
-    "DBV":    "DBV",
-    "GENFIT": "GNFT",
-    "VALLOUREC": "VK",
-    "MAUREL": "MAU",
+    "KALRAY":     "ALKAL.PA",
+    "2CRSI":      "AL2SI.PA",
+    "SOITEC":     "SOI.PA",
+    "RIBER":      "ALRIB.PA",
+    "SEMCO":      "ALSEM.PA",
+    "NEXANS":     "NEX.PA",
+    "VUSION":     "VU.PA",
+    "STM":        "STMPA.PA",
+    "NANOBIOTIX": "NANO.PA",
+    "DBV":        "DBV.PA",
+    "GENFIT":     "GNFT.PA",
+    "VALLOUREC":  "VK.PA",
+    "MAUREL":     "MAU.PA",
 }
+
+YAHOO_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
 def envoyer_telegram(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -38,15 +38,15 @@ def envoyer_telegram(message):
 
 def get_indicateurs(symbol):
     try:
-        url = f"https://api.twelvedata.com/time_series?symbol={symbol}&exchange={EXCHANGE}&interval=1day&outputsize=60&apikey={TWELVE_KEY}"
-        r = requests.get(url, timeout=15).json()
-        if r.get("status") == "error":
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=3mo"
+        r = requests.get(url, headers=YAHOO_HEADERS, timeout=15).json()
+        result = r["chart"]["result"][0]
+        closes = result["indicators"]["quote"][0]["close"]
+        volumes = result["indicators"]["quote"][0]["volume"]
+        closes = [c for c in closes if c is not None]
+        volumes = [v for v in volumes if v is not None]
+        if len(closes) < 21:
             return None
-        valeurs = r["values"]
-        if len(valeurs) < 21:
-            return None
-        closes = [float(v["close"]) for v in reversed(valeurs)]
-        volumes = [float(v["volume"]) for v in reversed(valeurs)]
         prix = closes[-1]
         mm20 = sum(closes[-20:]) / 20
         mm50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else None
@@ -74,11 +74,10 @@ def get_indicateurs(symbol):
 
 def get_carnet_ordres(symbol):
     try:
-        url = f"https://api.twelvedata.com/quote?symbol={symbol}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
-        r = requests.get(url, timeout=15).json()
-        if r.get("status") == "error":
-            return None
-        prix = float(r.get("close", 0) or 0)
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+        r = requests.get(url, headers=YAHOO_HEADERS, timeout=15).json()
+        meta = r["chart"]["result"][0]["meta"]
+        prix = float(meta.get("regularMarketPrice", 0))
         bid = round(prix * 0.998, 2)
         ask = round(prix * 1.002, 2)
         spread = round(ask - bid, 3)
