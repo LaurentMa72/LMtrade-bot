@@ -165,7 +165,10 @@ def envoyer_telegram(message):
     })
 
 def run_agent():
+def run_agent():
+    print(f"run_agent appelé à {datetime.now().strftime('%H:%M:%S')}", flush=True)
     maintenant = datetime.now()
+   # maintenant = datetime.now()
     heure = maintenant.hour
     if maintenant.weekday() >= 5:
         print("Week-end, agent en pause.")
@@ -222,9 +225,99 @@ from scanner import scanner_marche, UNIVERS_SCAN
 
 
 if __name__ == "__main__":
-    print("🚀 Agent de trading LMTrade v3 démarré — Twelve Data activé")
-    envoyer_telegram("🚀 *Agent LMTrade v3 démarré*\nTwelve Data activé. Analyse toutes les heures en séance.")
-    while True:
+    import threading
+    from telegram import Update
+    from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+    portfolio = {}
+
+    async def cmd_aide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        msg = """📱 *Commandes disponibles*
+
+/cours — Cours en temps réel
+/portefeuille — Valeur et PV de tes positions
+/achat VALEUR QTY PRIX — Ex: /achat KALRAY 10 7.50
+/vente VALEUR — Ex: /vente KALRAY
+/signal — Déclencher une analyse immédiate
+/aide — Ce message"""
+        await update.message.reply_markdown(msg)
+
+    async def cmd_cours(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        msg = "📊 *Cours en temps réel*\n\n"
+        for nom, symbol in WATCHLIST.items():
+            try:
+                url = f"https://api.twelvedata.com/price?symbol={symbol}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
+                r = requests.get(url, timeout=10).json()
+                price = float(r["price"])
+                msg += f"• {nom}: *{price:.2f} €*\n"
+            except:
+                msg += f"• {nom}: indisponible\n"
+        await update.message.reply_markdown(msg)
+
+    async def cmd_portefeuille(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        if not portfolio:
+            await update.message.reply_text("Portefeuille vide. Utilise /achat KALRAY 10 7.50")
+            return
+        msg = "💼 *Mon portefeuille*\n\n"
+        total_pv = 0
+        for nom, pos in portfolio.items():
+            try:
+                url = f"https://api.twelvedata.com/price?symbol={WATCHLIST[nom]}&exchange={EXCHANGE}&apikey={TWELVE_KEY}"
+                r = requests.get(url, timeout=10).json()
+                price = float(r["price"])
+                pv = (price - pos["prix_achat"]) * pos["qty"]
+                pct = (price / pos["prix_achat"] - 1) * 100
+                total_pv += pv
+                signe = "🟢" if pv >= 0 else "🔴"
+                msg += f"{signe} {nom}: {pos['qty']} x {price:.2f}€ | PV: {pv:+.2f}€ ({pct:+.1f}%)\n"
+            except:
+                msg += f"• {nom}: calcul impossible\n"
+        msg += f"\n*PV total : {total_pv:+.2f} €*"
+        await update.message.reply_markdown(msg)
+
+    async def cmd_achat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        try:
+            parts = update.message.text.split()
+            valeur, qty, prix = parts[1].upper(), int(parts[2]), float(parts[3])
+            portfolio[valeur] = {"qty": qty, "prix_achat": prix}
+            await update.message.reply_text(f"✅ Enregistré : {qty} {valeur} @ {prix:.2f}€")
+        except:
+            await update.message.reply_text("Format : /achat KALRAY 10 7.50")
+
+    async def cmd_vente(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        try:
+            valeur = update.message.text.split()[1].upper()
+            if valeur in portfolio:
+                pos = portfolio.pop(valeur)
+                await update.message.reply_text(f"✅ {valeur} clôturé ({pos['qty']} titres @ {pos['prix_achat']:.2f}€)")
+            else:
+                await update.message.reply_text(f"❌ {valeur} non trouvé")
+        except:
+            await update.message.reply_text("Format : /vente KALRAY")
+
+    async def cmd_signal(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        await update.message.reply_text("🔄 Analyse en cours...")
         run_agent()
-        print("⏰ Prochaine analyse dans 60 min...")
-        time.sleep(3600)
+        await update.message.reply_text("✅ Analyse terminée.")
+
+    def lancer_agent_en_fond():
+        print("🚀 Agent de trading LMTrade v3 démarré — Twelve Data activé")
+        envoyer_telegram("🚀 *Agent LMTrade v4 démarré*\nCommandes Telegram actives.")
+        while True:
+            run_agent()
+            print("⏰ Prochaine analyse dans 60 min...")
+            time.sleep(3600)
+
+    # Lance l'agent dans un thread séparé
+    t = threading.Thread(target=lancer_agent_en_fond, daemon=True)
+    t.start()
+
+    # Lance le bot Telegram dans le thread principal
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("aide", cmd_aide))
+    app.add_handler(CommandHandler("cours", cmd_cours))
+    app.add_handler(CommandHandler("portefeuille", cmd_portefeuille))
+    app.add_handler(CommandHandler("achat", cmd_achat))
+    app.add_handler(CommandHandler("vente", cmd_vente))
+    app.add_handler(CommandHandler("signal", cmd_signal))
+    app.run_polling()
