@@ -196,7 +196,7 @@ def run_agent():
     print(f"Analyse a {maintenant.strftime('%H:%M')}", flush=True)
     ref_closes = get_indice_ref()
     print(f"CAC charge : {'OK' if ref_closes else 'KO'}", flush=True)
-   for nom, symbol in WATCHLIST.items():
+    for nom, symbol in WATCHLIST.items():
         print(f"  -> {nom}...", flush=True)
         indicateurs = get_indicateurs(nom, symbol, ref_closes)
         time.sleep(8)
