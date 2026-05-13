@@ -45,7 +45,7 @@ def envoyer_telegram(message):
 
 def get_indice_ref():
     try:
-        url = f"https://api.twelvedata.com/time_series?symbol=CAC40&exchange=XPAR&interval=1day&outputsize=25&apikey={TWELVE_KEY}"
+        url = f"https://api.twelvedata.com/time_series?symbol=CACC&exchange=XPAR&interval=1day&outputsize=25&apikey={TWELVE_KEY}"
         r = requests.get(url, timeout=10).json()
         if r.get("status") == "error":
             return None
