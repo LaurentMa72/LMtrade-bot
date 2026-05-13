@@ -44,14 +44,7 @@ def envoyer_telegram(message):
 
 
 def get_indice_ref():
-    try:
-        url = f"https://api.twelvedata.com/time_series?symbol=TTE&exchange=XPAR&interval=1day&outputsize=25&apikey={TWELVE_KEY}"
-        r = requests.get(url, timeout=10).json()
-        if r.get("status") == "error":
-            return None
-        return [float(v["close"]) for v in reversed(r["values"])]
-    except Exception:
-        return None
+    return None
 
 
 def get_indicateurs(nom, symbol, ref_closes=None):
