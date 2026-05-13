@@ -158,4 +158,4 @@ def run_agent():
     if not (9 <= maintenant.hour < 18):
         print(f"Hors séance ({maintenant.hour}h).", flush=True)
         return
-    print(f"Analyse lancée à {maintenant.strftime('%H:%M')}",
+    print(f"Analyse lancée à {maintenant.strftime('%H:%M')}", flush=True)
