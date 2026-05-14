@@ -11,8 +11,16 @@ ANTHROPIC_KEY = os.environ.get("ANTHROPIC_KEY")
 TWELVE_KEY = os.environ.get("TWELVE_KEY")
 
 EXCHANGE = "XPAR"
-BUDGET_PAR_LIGNE = 100
+BUDGET_PAR_LIGNE = 150
 PARIS_TZ = pytz.timezone("Europe/Paris")
+
+INDICES_REF = {
+    "KALRAY": "TNO", "2CRSI": "TNO", "SOITEC": "TNO",
+    "RIBER": "TNO", "SEMCO": "TNO", "STM": "TNO",
+    "NANOBIOTIX": "HLT", "DBV": "HLT", "GENFIT": "HLT",
+    "NEXANS": "ENE", "VUSION": "ENE",
+    "VALLOUREC": "ENE", "MAUREL": "ENE",
+}
 
 WATCHLIST = {
     "KALRAY": "ALKAL",
@@ -43,8 +51,15 @@ def envoyer_telegram(message):
         print(f"Erreur Telegram: {e}", flush=True)
 
 
-def get_indice_ref():
-    return None
+def get_indice_ref(symbole="TNO"):
+    try:
+        url = f"https://api.twelvedata.com/time_series?symbol={symbole}&exchange=XPAR&interval=1day&outputsize=25&apikey={TWELVE_KEY}"
+        r = requests.get(url, timeout=10).json()
+        if r.get("status") == "error":
+            return None
+        return [float(v["close"]) for v in reversed(r["values"])]
+    except Exception:
+        return None
 
 
 def get_indicateurs(nom, symbol, ref_closes=None):
@@ -187,11 +202,15 @@ def run_agent():
         print(f"Hors seance ({maintenant.hour}h).", flush=True)
         return
     print(f"Analyse a {maintenant.strftime('%H:%M')}", flush=True)
-    ref_closes = get_indice_ref()
-    print(f"CAC charge : {'OK' if ref_closes else 'KO'}", flush=True)
+    ref_cache = {}
+
     for nom, symbol in WATCHLIST.items():
         print(f"  -> {nom}...", flush=True)
-        indicateurs = get_indicateurs(nom, symbol, ref_closes)
+        etf = INDICES_REF.get(nom, "TNO")
+        if etf not in ref_cache:
+            ref_cache[etf] = get_indice_ref(etf)
+            print(f"  ETF {etf} charge : {'OK' if ref_cache[etf] else 'KO'}", flush=True)
+        indicateurs = get_indicateurs(nom, symbol, ref_cache[etf])
         time.sleep(8)
         if not indicateurs:
             continue
